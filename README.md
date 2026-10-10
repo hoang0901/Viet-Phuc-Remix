@@ -86,20 +86,6 @@ Viet-Phuc-Remix/
 
    Mở thư mục dự án bằng Android Studio và chờ Gradle Sync hoàn tất.
 
-3. **Cấu hình biến môi trường**
-
-   Tạo file `.env` ở thư mục gốc dự án dựa trên `.env.example`, sau đó điền API key cần thiết:
-
-   ```env
-   GEMINI_API_KEY=your_api_key_here
-   ```
-
-   Không commit API key thật, mật khẩu hoặc thông tin bí mật lên GitHub.
-
-4. **Cấu hình Firebase nếu cần**
-
-   Nếu dự án sử dụng cấu hình Firebase của ứng dụng, thêm file `google-services.json` đúng với Firebase project và Android application ID của dự án. Kiểm tra lại cấu hình API, quyền truy cập và App Check trước khi chạy các chức năng liên quan.
-
 5. **Chạy ứng dụng**
 
    Chọn thiết bị Android hoặc emulator trong Android Studio, sau đó nhấn **Run**.
