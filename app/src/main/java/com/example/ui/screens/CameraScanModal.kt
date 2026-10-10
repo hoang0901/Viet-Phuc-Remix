@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,13 +44,36 @@ fun CameraScanModal(
 ) {
     // 1. Consent State (Luật 91/2025/QH15 về Bảo vệ dữ liệu cá nhân)
     var isConsentAgreed by remember { mutableStateOf(false) }
-    var showConsentDialog by remember { mutableStateOf(true) }
 
-    // 2. Scan Capture State
+    // 2. Request permission when first opening multi-angle scan
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        val perm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        permissionLauncher.launch(perm)
+    }
+
+    // 3. Scan & Gallery Selection State
     val capturedAngles = remember { mutableStateListOf<CameraScanAngle>() }
     var currentSelectingAngle by remember { mutableStateOf(CameraScanAngle.FRONT) }
     var scanAnalysisResult by remember { mutableStateOf<CapturedOutfitAnalysis?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            if (!capturedAngles.contains(currentSelectingAngle)) {
+                capturedAngles.add(currentSelectingAngle)
+            }
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -77,7 +106,7 @@ fun CameraScanModal(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.DocumentScanner,
+                                    imageVector = Icons.Default.PhotoLibrary,
                                     contentDescription = null,
                                     tint = VermilionRed,
                                     modifier = Modifier.size(20.dp)
@@ -93,7 +122,7 @@ fun CameraScanModal(
                                 color = CharcoalPrimary
                             )
                             Text(
-                                text = "Camera Scan → OutfitConfig → 3D Model",
+                                text = "Thư viện Ảnh → AI Analysis → 3D Model",
                                 fontSize = 11.sp,
                                 color = CharcoalSecondary
                             )
@@ -122,12 +151,12 @@ fun CameraScanModal(
                             capturedAngles = capturedAngles,
                             currentAngle = currentSelectingAngle,
                             onSelectAngle = { currentSelectingAngle = it },
-                            onToggleCaptureCurrent = {
-                                if (capturedAngles.contains(currentSelectingAngle)) {
-                                    capturedAngles.remove(currentSelectingAngle)
-                                } else {
-                                    capturedAngles.add(currentSelectingAngle)
-                                }
+                            onSelectFromGallery = {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    )
+                                )
                             },
                             onTriggerAnalysis = {
                                 isAnalyzing = true
@@ -208,7 +237,7 @@ private fun PrivacyConsentView(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "Tính năng Camera Scan đa góc được thiết kế tuân thủ nghiêm ngặt Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15 và điều khoản dịch vụ Google AI Studio:",
+                text = "Tính năng quét đa góc từ thư viện được thiết kế tuân thủ nghiêm ngặt Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15 và điều khoản dịch vụ Google AI Studio:",
                 fontSize = 13.sp,
                 color = CharcoalSecondary,
                 lineHeight = 18.sp
@@ -301,14 +330,14 @@ private fun PrivacyBullet(
 }
 
 /**
- * Quy trình chụp đa góc: Front -> 3/4 -> Side -> Back -> Close-up
+ * Quy trình chọn ảnh 5 góc từ thư viện: Front -> 3/4 -> Side -> Back -> Close-up
  */
 @Composable
 private fun MultiAngleCaptureView(
     capturedAngles: List<CameraScanAngle>,
     currentAngle: CameraScanAngle,
     onSelectAngle: (CameraScanAngle) -> Unit,
-    onToggleCaptureCurrent: () -> Unit,
+    onSelectFromGallery: () -> Unit,
     onTriggerAnalysis: () -> Unit,
     isAnalyzing: Boolean
 ) {
@@ -326,7 +355,7 @@ private fun MultiAngleCaptureView(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "Quy trình chụp 5 góc (Front → 3/4 → Side → Back → Close-up):",
+                        text = "Quy trình 5 góc chọn ảnh từ thư viện máy (Front → 3/4 → Side → Back → Close-up):",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = CharcoalPrimary
@@ -385,7 +414,7 @@ private fun MultiAngleCaptureView(
             }
         }
 
-        // Camera Framing Viewfinder Guide (Mô phỏng Khung ngắm Pose Landmark)
+        // Gallery Selection Guide View
         item {
             Card(
                 modifier = Modifier
@@ -401,7 +430,6 @@ private fun MultiAngleCaptureView(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Framing Guides Overlay
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.SpaceBetween,
@@ -421,7 +449,7 @@ private fun MultiAngleCaptureView(
                             )
                         }
 
-                        // Central framing silhouette target box
+                        // Central selection target box
                         Box(
                             modifier = Modifier
                                 .size(width = 170.dp, height = 180.dp)
@@ -442,7 +470,7 @@ private fun MultiAngleCaptureView(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Đã nạp góc ${currentAngle.label}",
+                                        text = "Đã chọn ảnh ${currentAngle.label}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = PureWhite
@@ -454,14 +482,14 @@ private fun MultiAngleCaptureView(
                                     modifier = Modifier.padding(8.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.CropFree,
+                                        imageVector = Icons.Default.PhotoLibrary,
                                         contentDescription = null,
                                         tint = PureWhite.copy(alpha = 0.6f),
                                         modifier = Modifier.size(32.dp)
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = currentAngle.guideDescription,
+                                        text = "Chọn ảnh thư viện cho ${currentAngle.label}\n(${currentAngle.guideDescription})",
                                         fontSize = 10.sp,
                                         color = PureWhite.copy(alpha = 0.85f),
                                         textAlign = TextAlign.Center,
@@ -471,23 +499,23 @@ private fun MultiAngleCaptureView(
                             }
                         }
 
-                        // Bottom Capture Button
+                        // Bottom Gallery Picker Button
                         Button(
-                            onClick = onToggleCaptureCurrent,
+                            onClick = onSelectFromGallery,
                             shape = RoundedCornerShape(20.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (capturedAngles.contains(currentAngle)) VermilionRed else PureWhite
+                                containerColor = if (capturedAngles.contains(currentAngle)) JadeTeal else PureWhite
                             )
                         ) {
                             Icon(
-                                imageVector = if (capturedAngles.contains(currentAngle)) Icons.Default.Replay else Icons.Default.CameraAlt,
+                                imageVector = if (capturedAngles.contains(currentAngle)) Icons.Default.Check else Icons.Default.PhotoLibrary,
                                 contentDescription = null,
                                 tint = if (capturedAngles.contains(currentAngle)) PureWhite else CharcoalPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (capturedAngles.contains(currentAngle)) "Chụp lại góc này" else "Chụp / Chọn ảnh ${currentAngle.label}",
+                                text = if (capturedAngles.contains(currentAngle)) "Chọn lại ảnh ${currentAngle.label}" else "Chọn ảnh từ thư viện máy",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (capturedAngles.contains(currentAngle)) PureWhite else CharcoalPrimary
@@ -515,7 +543,7 @@ private fun MultiAngleCaptureView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Tiến độ nạp ảnh:",
+                            text = "Tiến độ chọn ảnh thư viện:",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = CharcoalPrimary
@@ -766,7 +794,7 @@ private fun ScanAnalysisResultView(
                     ) {
                         Icon(imageVector = Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Chụp bổ sung", fontSize = 12.sp)
+                        Text("Chọn bổ sung", fontSize = 12.sp)
                     }
 
                     OutlinedButton(
